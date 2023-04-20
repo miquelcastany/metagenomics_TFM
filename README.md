@@ -2,9 +2,9 @@
 Master's Final thesis in metagenomics (gut micorbiome)
 
 
-UPSTREAM ANALYSIS
+## UPSTREAM ANALYSIS
 
-SRA-TOOLKIT
+### SRA-TOOLKIT
 
 Prefetch
 docker run --rm -v /home/miquel/Descargas:/home/miquel/Descargas -v /home/miquel/sra:/home/miquel/sra pegi3s/sratoolkit prefetch --option-file /home/miquel/Descargas/SRR_Acc_List.txt --output-directory /home/miquel/sra
@@ -13,7 +13,7 @@ fasterq-dump
 docker run --rm -v /home/miquel/sra:/home/miquel/sra -v /home/miquel/fastq:/home/miquel/fastq pegi3s/sratoolkit fasterq-dump /home/miquel/sra/* --outdir /home/miquel/fastq
 
 
-MOTHUR
+### MOTHUR
 
 make.file()
 docker run -it -v /home/miquel/fastq:/home/miquel/fastq biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#make.file(inputdir=/home/miquel/fastq, type=fastq, prefix=discovery)"
