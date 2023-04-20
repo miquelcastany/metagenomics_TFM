@@ -40,7 +40,6 @@ docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#count.seqs(inputdir=/home/miquel/mothur, name=discovery.trim.contigs.good.names, group=discovery.contigs.groups)"
 
 #### pcr.seqs(silva/oligos)
-
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#pcr.seqs(inputdir=/home/miquel/mothur, fasta=silva.bacteria.fasta, oligos=oligos)"
 
 #### summary.seqs(pcr.fasta)
