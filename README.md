@@ -17,59 +17,47 @@ docker run --rm -v /home/miquel/sra:/home/miquel/sra -v /home/miquel/fastq:/home
 
 ### MOTHUR
 
-make.file()
-
+#### make.file()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#make.file(inputdir=/home/miquel/mothur, type=fastq, prefix=discovery)"
 
-make.contigs()
-
+#### make.contigs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#make.contigs(inputdir=/home/miquel/mothur, file=discovery.files)"
 
-summary.seqs()
-
+#### summary.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta)"
 
-screen.seqs()
-
+#### screen.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta, maxambig=0, maxlength=301, maxhomop=8)" 
 
-unique.seqs()
-
+#### unique.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#unique.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.fasta)"
 
-summary.seqs(unique.fasta)
-
+#### summary.seqs(unique.fasta)
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.fasta)"
 
-count.seqs()
+#### count.seqs()
 
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#count.seqs(inputdir=/home/miquel/mothur, name=discovery.trim.contigs.good.names, group=discovery.contigs.groups)"
 
-pcr.seqs(silva/oligos)
+#### pcr.seqs(silva/oligos)
 
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#pcr.seqs(inputdir=/home/miquel/mothur, fasta=silva.bacteria.fasta, oligos=oligos)"
 
-summary.seqs(pcr.fasta)
-
+#### summary.seqs(pcr.fasta)
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=silva.bacteria.pcr.fasta)"
 
-pcr.seqs()
-
+#### pcr.seqs()
 docker run -it -v /home/miquel/Descargas:/home/miquel/Descargas biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#pcr.seqs(inputdir=/home/miquel/Descargas, fasta=silva.bacteria.pcr.fasta, start=13861, end=23444, keepdots=F)"
 
-align.seqs()
-
+#### align.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#align.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.fasta, reference=silva.bacteria.pcr.fasta)"
 
-summary.seqs(align/count)
-
+#### summary.seqs(align/count)
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.align)"
 
-screen.seqs(align/count)
-
+#### screen.seqs(align/count)
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.align, count= discovery.trim.contigs.good.count_table, start=13862 end=23444)"
 
-filter.seqs()
-
+#### filter.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#filter.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.good.align, vertical=T, trump=.)"
 
