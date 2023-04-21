@@ -27,7 +27,7 @@ docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta)"
 
 #### screen.seqs()
-docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta, maxambig=0, maxlength=301, maxhomop=8)" 
+docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta, maxambig=0, maxlength=297, maxhomop=8)" 
 
 #### unique.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#unique.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.fasta)"
@@ -36,7 +36,6 @@ docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.fasta)"
 
 #### count.seqs()
-
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#count.seqs(inputdir=/home/miquel/mothur, name=discovery.trim.contigs.good.names, group=discovery.contigs.groups)"
 
 #### pcr.seqs(silva/oligos)
@@ -72,5 +71,7 @@ docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v
 #### classify.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#classify.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.good.filter.unique.precluster.fasta, count=discovery.trim.contigs.good.unique.good.filter.unique.precluster.count_table, reference=trainset9_032012.pds.fasta, taxonomy=trainset9_032012.pds.tax)"
 
+#### remove.lineage()
+docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#remove.lineage(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.good.filter.unique.precluster.fasta, count=discovery.trim.contigs.good.unique.good.filter.unique.precluster.count_table, taxonomy=discovery.trim.contigs.good.unique.good.filter.unique.precluster.pds.wang.taxonomy, taxon=Chloroplast-Mitochondria-unknown-Archaea-Eukaryota)"
 
 
