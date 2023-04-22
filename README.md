@@ -6,12 +6,13 @@ Master's Final thesis in metagenomics (gut micorbiome)
 
 ### SRA-TOOLKIT
 
-Prefetch
+#### pulling sra-toolkit from pegi3s:
+docker pull pegi3s/sratoolkit:latest
 
+#### Prefetch
 docker run --rm -v /home/miquel/Descargas:/home/miquel/Descargas -v /home/miquel/sra:/home/miquel/sra pegi3s/sratoolkit prefetch --option-file /home/miquel/Descargas/SRR_Acc_List.txt --output-directory /home/miquel/sra
 
-fasterq-dump
-
+#### fasterq-dump
 docker run --rm -v /home/miquel/sra:/home/miquel/sra -v /home/miquel/fastq:/home/miquel/fastq pegi3s/sratoolkit fasterq-dump /home/miquel/sra/* --outdir /home/miquel/fastq
 
 
