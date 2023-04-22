@@ -18,6 +18,9 @@ docker run --rm -v /home/miquel/sra:/home/miquel/sra -v /home/miquel/fastq:/home
 
 ### MOTHUR
 
+#### pulling mothur image from biocontainers:
+docker pull biocontainers/mothur:v1.41.21-1-deb_cv1
+
 #### make.file()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#make.file(inputdir=/home/miquel/mothur, type=fastq, prefix=discovery)"
 
