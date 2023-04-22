@@ -46,7 +46,7 @@ docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#pcr.seqs(inputdir=/home/miquel/mothur, fasta=silva.bacteria.fasta, oligos=oligos)"
 
 #### summary.seqs(pcr.fasta)
-docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=silva.bacteria.pcr.oligos.fasta)"
+docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=silva.bacteria.pcr.fasta)"
 
 #### align.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#align.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.fasta, reference=silva.bacteria.pcr.fasta)"
