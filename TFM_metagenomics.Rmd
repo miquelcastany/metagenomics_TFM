@@ -69,7 +69,7 @@ library(randomForest)
 
 # IMPORT DATA
 ```{r}
-setwd("C:/Users/casta/OneDrive/Escriptori/TFM/data")
+#First set the working directory where your data is!!
 
 #DISCOVERY COHORT
 d_taxonomy <- read.table("discovery.final.taxonomy", header = TRUE, row.names = 1, sep = "\t")
