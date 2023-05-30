@@ -1,4 +1,4 @@
-# metagenomics_TFM
+# metagenomics Master's Final Thesis
 Master's Final thesis in metagenomics (gut micorbiome)
 
 The present study will commence by utilizing 16S rRNA metagenomic sequencing data obtained from fecal samples of patients diagnosed with or without ulcerative colitis (UC), sourced from various previously published studies. These studies will be categorized into two cohorts: a discovery cohort and a validation cohort. The taxonomic classification of each sample will be performed using specialized software designed for such tasks. Specifically, the mothur software (Schloss et al., 2009) will be employed when working with 16S rRNA data, along with taxonomic classification databases like Greengenes or SILVA (DeSantis et al., 2006; Quast et al., 2013).
