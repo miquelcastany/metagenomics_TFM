@@ -69,7 +69,7 @@ library(randomForest)
 
 # IMPORT DATA
 ```{r}
-#First set the working directory where your data is!!
+#FIRST SET THE WORKING DIRECTORY WHERE YOUR DATA IS!!
 
 #DISCOVERY COHORT
 d_taxonomy <- read.table("discovery.final.taxonomy", header = TRUE, row.names = 1, sep = "\t")
