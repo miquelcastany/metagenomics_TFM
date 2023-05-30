@@ -1,6 +1,6 @@
 #! /bin/sh
 # metagenomics_TFM
-Master's Final thesis in metagenomics (gut micorbiome)
+# Master's Final thesis in metagenomics (gut micorbiome)
 
 
 ## UPSTREAM ANALYSIS
