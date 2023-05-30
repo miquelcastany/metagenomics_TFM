@@ -1,0 +1,926 @@
+---
+title: "TFM_metagenomics"
+author: "Miquel Castany"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 3
+    theme: cerulean
+    highlight: textmate
+    number_sections: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r class.source = 'fold-hide', setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r}
+.cran_packages <- c("tidyverse", "cowplot", "picante", "vegan", "HMP", "dendextend", "rms", "devtools", "caret")
+.bioc_packages <- c("phyloseq", "microbiome")
+.inst <- .cran_packages %in% installed.packages()
+if(any(!.inst)) {
+  install.packages(.cran_packages[!.inst])
+}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(.bioc_packages)
+devtools::install_github(repo = "malucalle/selbal")
+```
+
+```{r}
+#load necessary packages
+library(devtools)
+library(phyloseq)
+library(microbiome)
+library(tidyr)
+library(ggplot2)
+library(HMP)
+library(dplyr)
+library(vegan)
+library(dendextend)
+library(knitr)
+library(reshape)
+library(tidyverse)
+library(selbal)
+library(coda4microbiome)
+library(caret)
+library(randomForest)
+```
+
+# IMPORT DATA
+```{r}
+setwd("C:/Users/casta/OneDrive/Escriptori/TFM/data")
+
+#DISCOVERY COHORT
+d_taxonomy <- read.table("discovery.final.taxonomy", header = TRUE, row.names = 1, sep = "\t")
+d_taxonomy <- d_taxonomy %>% separate(1,sep = ";",into= c("Kingdom","Phylum","Class","Order","Family","Genus","Species"))
+d_taxonomy <- d_taxonomy[,-8]
+
+d_count_table <- read.table("discovery.final.count_table", header = TRUE, row.names = 1, sep = "\t")
+d_metadata <- read.table("discovery_SraRunTable.txt", header = TRUE, row.names = 1, sep = ",")
+
+#VALIDATION COHORT
+v_taxonomy <- read.table("validation.final.taxonomy", header = TRUE, row.names = 1, sep = "\t")
+v_taxonomy <- v_taxonomy %>% separate(1,sep = ";",into= c("Kingdom","Phylum","Class","Order","Family","Genus","Species"))
+v_taxonomy <- v_taxonomy[,-8]
+
+v_count_table <- read.table("validation.final.count_table", header = TRUE, row.names = 1, sep = "\t")
+v_metadata <- read.table("validation_SraRunTable.txt", header = TRUE, row.names = 1, sep = ",")
+```
+
+# PHYLOSEQ OBJECT
+```{r}
+#Create discovery phyloseq object
+d_ps <- phyloseq(
+  otu_table(d_count_table, taxa_are_rows = TRUE),
+  tax_table(as.matrix(d_taxonomy)),
+  sample_data(d_metadata)
+)
+(d_ps)
+
+#Create validation phyloseq object
+v_ps <- phyloseq(
+  otu_table(v_count_table, taxa_are_rows = TRUE),
+  tax_table(as.matrix(v_taxonomy)),
+  sample_data(v_metadata)
+)
+(v_ps)
+```
+
+# PREPROCESSING DATA
+```{r}
+# Remove numbers and brackets from tax_table
+
+#discovery cohort
+phyloseq::tax_table(d_ps) <- gsub("\\(\\d+\\)", "", phyloseq::tax_table(d_ps))
+
+#validation cohort
+phyloseq::tax_table(v_ps) <- gsub("\\(\\d+\\)", "", phyloseq::tax_table(v_ps))
+```
+
+```{r}
+#discovery
+sort(phyloseq::sample_sums(d_ps))
+(d_ps <- phyloseq::subset_samples(d_ps, phyloseq::sample_sums(d_ps) > 20000))
+(d_ps <- phyloseq::prune_taxa(phyloseq::taxa_sums(d_ps) > 0, d_ps))
+
+#validation
+sort(phyloseq::sample_sums(v_ps))
+(v_ps <- phyloseq::subset_samples(v_ps, phyloseq::sample_sums(v_ps) > 20000))
+(v_ps <- phyloseq::prune_taxa(phyloseq::taxa_sums(v_ps) > 0, v_ps))
+```
+
+# PREPROCESSING METADATA
+```{r}
+#Assign new sample metadata field to DISCOVERY COHORT
+phyloseq::sample_data(d_ps)$group <- ifelse(phyloseq::sample_data(d_ps)$gastrointest_disord == "UC", "UC", "HC")
+phyloseq::sample_data(d_ps)$group <- factor(phyloseq::sample_data(d_ps)$group, levels = c("HC", "UC"))
+d_ps %>% 
+  sample_data %>%
+  dplyr::count(group)
+
+#Assign new sample metadata field to VALIDATION COHORT
+phyloseq::sample_data(v_ps)$group <- gsub("(HC|UC)\\d+", "\\1", phyloseq::sample_data(v_ps)$Sample.Name)
+phyloseq::sample_data(v_ps)$group <- factor(phyloseq::sample_data(v_ps)$group, levels = c("HC", "UC"))
+v_ps %>% 
+  sample_data %>%
+  dplyr::count(group)
+```
+
+
+# RELATIVE ABUNDANCE VISUALIZATION
+
+## BY GROUP
+```{r}
+table(phyloseq::tax_table(d_ps)[, "Phylum"])
+d_ps_rel_abund = phyloseq::transform_sample_counts(d_ps, function(x){x / sum(x)})
+phyloseq::otu_table(d_ps)[1:5, 1:5]
+phyloseq::otu_table(d_ps_rel_abund)[1:5, 1:5]
+phyloseq::tax_table(d_ps_rel_abund)[1:5, 1:7]
+
+
+phyloseq::plot_bar(d_ps_rel_abund, fill = "Phylum") +
+  geom_bar(aes(color = Phylum, fill = Phylum), stat = "identity", position = "stack") +
+  labs(x = "", y = "Relative Abundance\n") +
+  facet_wrap(~ group, scales = "free") +
+  theme(panel.background = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+
+```{r}
+table(phyloseq::tax_table(v_ps)[, "Phylum"])
+v_ps_rel_abund = phyloseq::transform_sample_counts(v_ps, function(x){x / sum(x)})
+phyloseq::otu_table(v_ps)[1:5, 1:5]
+phyloseq::otu_table(v_ps_rel_abund)[1:5, 1:5]
+phyloseq::tax_table(v_ps_rel_abund)[1:5, 1:7]
+
+
+phyloseq::plot_bar(v_ps_rel_abund, fill = "Phylum") +
+  geom_bar(aes(color = Phylum, fill = Phylum), stat = "identity", position = "stack") +
+  labs(x = "", y = "Relative Abundance\n") +
+  facet_wrap(~ group, scales = "free") +
+  theme(panel.background = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+# ABSOLUTE ABUNDANCE VISUALIZATION
+
+## BY PHYLLUM
+```{r}
+d_ps_phylum <- phyloseq::tax_glom(d_ps, "Phylum")
+phyloseq::taxa_names(d_ps_phylum) <- phyloseq::tax_table(d_ps_phylum)[, "Phylum"]
+phyloseq::otu_table(d_ps_phylum)[,1:5]
+```
+
+```{r}
+#Melt and plot for DICOVERY COHORT
+phyloseq::psmelt(d_ps_phylum) %>%
+ggplot(data = ., aes(x = group, y = Abundance)) +
+  geom_boxplot(outlier.shape  = NA) +
+  geom_jitter(aes(color = OTU), height = 0, width = .2) +
+  labs(x = "", y = "Abundance\n") +
+  facet_wrap(~ OTU, scales = "free")
+```
+
+
+```{r}
+v_ps_phylum <- phyloseq::tax_glom(v_ps, "Phylum")
+phyloseq::taxa_names(v_ps_phylum) <- phyloseq::tax_table(v_ps_phylum)[, "Phylum"]
+phyloseq::otu_table(v_ps_phylum)[1:5, 1:5]
+```
+
+```{r}
+#Melt and plot for VALIDATION COHORT
+phyloseq::psmelt(v_ps_phylum) %>%
+ggplot(data = ., aes(x = group, y = Abundance)) +
+  geom_boxplot(outlier.shape  = NA) +
+  geom_jitter(aes(color = OTU), height = 0, width = .2) +
+  labs(x = "", y = "Abundance\n") +
+  facet_wrap(~ OTU, scales = "free")
+```
+
+## RARE PHYLA TEST
+```{r}
+#Subset groups
+d_controls <- phyloseq::subset_samples(d_ps_phylum, group == "HC")
+d_UC <- phyloseq::subset_samples(d_ps_phylum, group == "UC")
+
+#Output OTU tables
+d_control_otu <- data.frame(phyloseq::otu_table(d_controls))
+d_UC_otu <- data.frame(phyloseq::otu_table(d_UC))
+
+#Group rare phyla
+d_control_otu <- d_control_otu %>%
+  t(.) %>%
+  as.data.frame(.) %>%
+  mutate(Other = Fusobacteria + Lentisphaerae + Proteobacteria + Synergistetes) %>%
+  dplyr::select(-Fusobacteria, -Lentisphaerae, -Proteobacteria, -Synergistetes)
+
+d_UC_otu <- d_UC_otu %>%
+  t(.) %>%
+  as.data.frame(.) %>%
+  mutate(Other = Fusobacteria + Lentisphaerae + Proteobacteria + Synergistetes) %>%
+  dplyr::select(-Fusobacteria, -Lentisphaerae, -Proteobacteria, -Synergistetes)
+
+#HMP test
+d_group_data <- list(d_control_otu, d_UC_otu)
+(xdc <- HMP::Xdc.sevsample(d_group_data)) 
+```
+
+```{r}
+1 - pchisq(-22.39171, 4)
+```
+
+```{r}
+#Subset groups
+v_controls <- phyloseq::subset_samples(v_ps_phylum, group == "HC")
+v_UC <- phyloseq::subset_samples(v_ps_phylum, group == "UC")
+
+#Output OTU tables
+v_control_otu <- data.frame(phyloseq::otu_table(v_controls))
+v_UC_otu <- data.frame(phyloseq::otu_table(v_UC))
+
+#Group rare phyla
+v_control_otu <- v_control_otu %>%
+  t(.) %>%
+  as.data.frame(.) %>%
+  mutate(Other = Chloroflexi + Lentisphaerae + Synergistetes) %>%
+  dplyr::select(-Chloroflexi, -Lentisphaerae, -Synergistetes)
+
+v_UC_otu <- v_UC_otu %>%
+  t(.) %>%
+  as.data.frame(.) %>%
+  mutate(Other = Chloroflexi + Lentisphaerae + Synergistetes) %>%
+  dplyr::select(-Chloroflexi, -Lentisphaerae, -Synergistetes)
+
+#HMP test
+v_group_data <- list(v_control_otu, v_UC_otu)
+(xdc <- HMP::Xdc.sevsample(v_group_data)) 
+```
+
+```{r}
+1 - pchisq(-35.56211, 3)
+```
+
+# HIERARCHICAL CLUSTERING
+
+## DISCOVERY COHORT
+```{r}
+#Extract OTU table and compute BC on DISCOVERY COHORT
+d_ps_rel_otu <- data.frame(phyloseq::otu_table(d_ps_rel_abund))
+d_ps_rel_otu <- t(d_ps_rel_otu)
+d_bc_dist <- vegan::vegdist(d_ps_rel_otu, method = "bray")
+as.matrix(d_bc_dist)[1:5, 1:5]
+```
+
+```{r}
+#Save as dendrogram
+d_ward <- as.dendrogram(hclust(d_bc_dist, method = "ward.D2"))
+#Provide color codes
+d_meta <- data.frame(phyloseq::sample_data(d_ps_rel_abund))
+colorCode <- c(HC = "red", UC = "blue")
+labels_colors(d_ward) <- colorCode[d_meta$group][order.dendrogram(d_ward)]
+#Plot
+plot(d_ward)
+```
+
+
+## VALIDATION COHORT
+```{r}
+#Extract OTU table and compute BC on DISCOVERY COHORT
+v_ps_rel_otu <- data.frame(phyloseq::otu_table(v_ps_rel_abund))
+v_ps_rel_otu <- t(v_ps_rel_otu)
+v_bc_dist <- vegan::vegdist(v_ps_rel_otu, method = "bray")
+as.matrix(v_bc_dist)[1:5, 1:5]
+```
+
+```{r}
+#Save as dendrogram
+v_ward <- as.dendrogram(hclust(v_bc_dist, method = "ward.D2"))
+#Provide color codes
+v_meta <- data.frame(phyloseq::sample_data(v_ps_rel_abund))
+colorCode <- c(HC = "red", UC = "blue")
+labels_colors(v_ward) <- colorCode[v_meta$group][order.dendrogram(v_ward)]
+#Plot
+plot(v_ward)
+```
+
+
+# ALPHA DIVERSITY
+
+## DISCOVERY COHORT
+```{r}
+ggplot(data = data.frame("total_reads" =  phyloseq::sample_sums(d_ps),
+                         "observed" = phyloseq::estimate_richness(d_ps, measures = "Observed")[, 1]),
+       aes(x = total_reads, y = observed)) +
+  geom_point() +
+  geom_smooth(method="lm", se = FALSE) +
+  labs(x = "\nTotal Reads", y = "Observed Richness\n")
+```
+
+
+```{r}
+tab <- microbiome::alpha(d_ps, index = "all")
+kable(head(tab))
+```
+
+```{r}
+tab <- richness(d_ps)
+kable(head(tab))
+```
+
+```{r}
+# Absolute abundances for the single most abundant taxa in each sample
+tab <- dominance(d_ps, index = "all")
+kable(head(tab))
+```
+
+```{r}
+dominant(d_ps)
+```
+
+```{r}
+tab <- rarity(d_ps, index = "all")
+kable(head(tab))
+```
+
+```{r}
+tab <- coverage(d_ps, threshold = 0.5)
+kable(head(tab))
+```
+
+```{r}
+(tab <- core_abundance(d_ps, detection = .1/100, prevalence = 50/100))
+```
+
+```{r}
+(tab <- inequality(d_ps))
+```
+
+```{r}
+tab <- evenness(d_ps, "all")
+kable(head(tab))
+```
+
+```{r}
+p.shannon <- boxplot_alpha(d_ps, 
+                           index = "shannon",
+                           x_var = "group",
+                           fill.colors = c(HC="cyan4", UC="deeppink4"))
+
+p.shannon <- p.shannon + theme_minimal() + 
+  labs(x="group", y="Shannon diversity") +
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=16),
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=16))
+p.shannon
+```
+
+```{r}
+# Construct the data
+d <- meta(d_ps)
+d$diversity <- microbiome::diversity(d_ps, "shannon")$shannon
+# Split the values by group
+d_spl <- split(d$diversity, d$group)
+# Kolmogorov-Smirnov test
+d_pv <- ks.test(d_spl$HC, d_spl$UC)$p.value
+# Adjust the p-value
+(d_padj <- p.adjust(d_pv))
+```
+
+
+## VALIDATION COHORT
+```{r}
+ggplot(data = data.frame("total_reads" =  phyloseq::sample_sums(v_ps),
+                         "observed" = phyloseq::estimate_richness(v_ps, measures = "Observed")[, 1]),
+       aes(x = total_reads, y = observed)) +
+  geom_point() +
+  geom_smooth(method="lm", se = FALSE) +
+  labs(x = "\nTotal Reads", y = "Observed Richness\n")
+```
+
+
+```{r}
+tab <- richness(v_ps)
+kable(head(tab))
+```
+
+```{r}
+# Absolute abundances for the single most abundant taxa in each sample
+tab <- dominance(v_ps, index = "all")
+kable(head(tab))
+```
+
+```{r}
+dominant(v_ps)
+```
+
+```{r}
+tab <- coverage(v_ps, threshold = 0.5)
+kable(head(tab))
+```
+
+
+```{r}
+tab <- evenness(v_ps, "all")
+kable(head(tab))
+```
+
+```{r}
+p.shannon <- boxplot_alpha(v_ps, 
+                           index = "shannon",
+                           x_var = "group",
+                           fill.colors = c(HC="cyan4", UC="deeppink4"))
+
+p.shannon <- p.shannon + theme_minimal() + 
+  labs(x="group", y="Shannon diversity") +
+  theme(axis.text = element_text(size=12),
+        axis.title = element_text(size=16),
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=16))
+p.shannon
+```
+
+```{r}
+# Construct the data
+v <- meta(v_ps)
+v$diversity <- microbiome::diversity(v_ps, "shannon")$shannon
+# Split the values by group
+v_spl <- split(v$diversity, v$group)
+# Kolmogorov-Smirnov test
+v_pv <- ks.test(v_spl$HC, v_spl$UC)$p.value
+# Adjust the p-value
+(v_padj <- p.adjust(v_pv))
+```
+
+# BETA DIVERSITY
+
+## DISCOVERY COHORT
+```{r}
+d_b.HC <- divergence(subset_samples(d_ps, group == "HC"),
+   apply(abundances(subset_samples(d_ps, group == "HC")), 1, median))
+
+d_b.UC <- divergence(subset_samples(d_ps, group == "UC"),
+   apply(abundances(subset_samples(d_ps, group == "UC")), 1, median))
+```
+
+```{r}
+d_l<- list(d_b.HC, d_b.UC)
+d_df<- melt(d_l)
+d_df$L1[d_df$L1 == '1']<- 'HC'
+d_df$L1[d_df$L1 == '2']<- 'UC'
+
+d_df$L1<- factor(d_df$L1, levels = c('HC','UC'))
+
+d_p<- ggplot(d_df, aes(x = L1, y = value)) + geom_boxplot()+ xlab('')
+
+plot(d_p)
+```
+
+## VALIDATION COHORT
+```{r}
+v_b.HC <- divergence(subset_samples(v_ps, group == "HC"),
+   apply(abundances(subset_samples(v_ps, group == "HC")), 1, median))
+
+v_b.UC <- divergence(subset_samples(v_ps, group == "UC"),
+   apply(abundances(subset_samples(v_ps, group == "UC")), 1, median))
+```
+
+```{r}
+v_l<- list(v_b.HC, v_b.UC)
+v_df<- melt(v_l)
+v_df$L1[v_df$L1 == '1']<- 'HC'
+v_df$L1[v_df$L1 == '2']<- 'UC'
+
+v_df$L1<- factor(v_df$L1, levels = c('HC','UC'))
+
+v_p<- ggplot(v_df, aes(x = L1, y = value)) + geom_boxplot()+ xlab('')
+
+plot(v_p)
+```
+
+
+# PCoA
+
+## DISCOVERY COHORT
+```{r}
+#CLR transform
+(d_ps_clr <- microbiome::transform(d_ps, "clr"))   
+```
+
+```{r}
+#PCA via phyloseq
+d_ord_clr <- phyloseq::ordinate(d_ps_clr, "RDA")
+#Plot scree plot
+phyloseq::plot_scree(d_ord_clr) + 
+  geom_bar(stat="identity", fill = "blue") +
+  labs(x = "\nAxis", y = "Proportion of Variance\n")
+```
+
+```{r}
+#Examine eigenvalues and % prop. variance explained
+head(d_ord_clr$CA$eig)      
+```
+
+```{r}
+sapply(d_ord_clr$CA$eig[1:5], function(x) x / sum(d_ord_clr$CA$eig))    
+```
+
+```{r}
+#Scale axes and plot ordination
+d_clr1 <- d_ord_clr$CA$eig[1] / sum(d_ord_clr$CA$eig)
+d_clr2 <- d_ord_clr$CA$eig[2] / sum(d_ord_clr$CA$eig)
+phyloseq::plot_ordination(d_ps, d_ord_clr, type="samples", color="group") + 
+  geom_point(size = 2) +
+  coord_fixed(d_clr2 / d_clr1) +
+  stat_ellipse(aes(group = group), linetype = 2)
+```
+
+
+## VALIDATION COHORT
+```{r}
+#CLR transform
+(v_ps_clr <- microbiome::transform(v_ps, "clr")) 
+```
+
+```{r}
+#PCA via phyloseq
+v_ord_clr <- phyloseq::ordinate(v_ps_clr, "RDA")
+#Plot scree plot
+phyloseq::plot_scree(v_ord_clr) + 
+  geom_bar(stat="identity", fill = "blue") +
+  labs(x = "\nAxis", y = "Proportion of Variance\n")
+```
+
+```{r}
+#Examine eigenvalues and % prop. variance explained
+head(v_ord_clr$CA$eig)      
+```
+
+```{r}
+sapply(v_ord_clr$CA$eig[1:5], function(x) x / sum(v_ord_clr$CA$eig)) 
+```
+
+```{r}
+#Scale axes and plot ordination
+v_clr1 <- v_ord_clr$CA$eig[1] / sum(v_ord_clr$CA$eig)
+v_clr2 <- v_ord_clr$CA$eig[2] / sum(v_ord_clr$CA$eig)
+phyloseq::plot_ordination(v_ps, v_ord_clr, type="samples", color="group") + 
+  geom_point(size = 2) +
+  coord_fixed(v_clr2 / v_clr1) +
+  stat_ellipse(aes(group = group), linetype = 2)
+```
+
+
+# DIFFERENTIAL ABUNDANCE ANALYSIS
+
+## DISCOVERY COHORT
+```{r}
+#Generate data.frame with OTUs and metadata
+d_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(d_ps_clr))))
+d_ps_wilcox$group <- phyloseq::sample_data(d_ps_clr)$group
+#Define functions to pass to map
+wilcox_model <- function(df){
+  wilcox.test(abund ~ group, data = df)
+}
+wilcox_pval <- function(df){
+  wilcox.test(abund ~ group, data = df)$p.value
+}
+#Create nested data frames by OTU and loop over each using map 
+d_wilcox_results <- d_ps_wilcox %>%
+  gather(key = OTU, value = abund, -group) %>%
+  group_by(OTU) %>%
+  nest() %>%
+  mutate(wilcox_test = map(data, wilcox_model),
+         p_value = map(data, wilcox_pval))                       
+#Show results
+head(d_wilcox_results)
+```
+
+```{r}
+head(d_wilcox_results$data[[1]])
+```
+
+```{r}
+d_wilcox_results$wilcox_test[[1]]
+```
+
+```{r}
+d_wilcox_results$p_value[[1]]
+```
+
+```{r}
+#Unnesting
+d_wilcox_results <- d_wilcox_results %>%
+  dplyr::select(OTU, p_value) %>%
+  unnest()
+```
+
+```{r}
+head(d_wilcox_results)
+```
+
+```{r}
+#Adding taxonomic labels
+d_taxa_info <- data.frame(tax_table(d_ps_clr))
+d_taxa_info <- d_taxa_info %>% rownames_to_column(var = "OTU")
+#Computing FDR corrected p-values
+d_wilcox_results <- d_wilcox_results %>%
+  full_join(d_taxa_info) %>%
+  arrange(p_value) %>%
+  mutate(BH_FDR = p.adjust(p_value, "BH")) %>%
+  filter(BH_FDR < 0.05) %>%
+  dplyr::select(OTU, p_value, BH_FDR, everything())
+```
+
+```{r}
+#Printing results
+head(d_wilcox_results)
+```
+
+
+## VALIDATION COHORT
+```{r}
+#Generate data.frame with OTUs and metadata
+v_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(v_ps_clr))))
+v_ps_wilcox$group <- phyloseq::sample_data(v_ps_clr)$group
+#Define functions to pass to map
+wilcox_model <- function(df){
+  wilcox.test(abund ~ group, data = df)
+}
+wilcox_pval <- function(df){
+  wilcox.test(abund ~ group, data = df)$p.value
+}
+#Create nested data frames by OTU and loop over each using map 
+v_wilcox_results <- v_ps_wilcox %>%
+  gather(key = OTU, value = abund, -group) %>%
+  group_by(OTU) %>%
+  nest() %>%
+  mutate(wilcox_test = map(data, wilcox_model),
+         p_value = map(data, wilcox_pval))                       
+#Show results
+head(v_wilcox_results)
+```
+
+```{r}
+head(v_wilcox_results$data[[1]])
+```
+
+```{r}
+v_wilcox_results$wilcox_test[[1]]
+```
+
+```{r}
+v_wilcox_results$p_value[[1]]
+```
+
+```{r}
+#Unnesting
+v_wilcox_results <- v_wilcox_results %>%
+  dplyr::select(OTU, p_value) %>%
+  unnest()
+```
+
+```{r}
+head(v_wilcox_results)
+```
+
+```{r}
+#Adding taxonomic labels
+v_taxa_info <- data.frame(tax_table(v_ps_clr))
+v_taxa_info <- v_taxa_info %>% rownames_to_column(var = "OTU")
+#Computing FDR corrected p-values
+v_wilcox_results <- v_wilcox_results %>%
+  full_join(v_taxa_info) %>%
+  arrange(p_value) %>%
+  mutate(BH_FDR = p.adjust(p_value, "BH")) %>%
+  filter(BH_FDR < 0.05) %>%
+  dplyr::select(OTU, p_value, BH_FDR, everything())
+```
+
+```{r}
+head(v_wilcox_results) 
+```
+
+
+# PREDICTION
+
+## SELBAL
+### DISCOVERY COHORT
+```{r}
+d_ps_family <- phyloseq::tax_glom(d_ps, "Family")
+phyloseq::taxa_names(d_ps_family) <- phyloseq::tax_table(d_ps_family)[, "Family"]
+```
+
+
+```{r}
+# Remove columns with low counts
+threshold <- 6  # Adjust the threshold as needed. FOUND 6 TO BE THE MINIMUM THRESHOLD ALLOWED TO PERFORM CV!!
+d_ps_filtered <- phyloseq::prune_taxa(rowSums(phyloseq::otu_table(d_ps_family)) >= threshold, d_ps_family)
+
+# Run Selbal
+d_cv_selbal <- selbal::selbal.cv(
+  x = data.frame(t(phyloseq::otu_table(d_ps_filtered))),
+  y = phyloseq::sample_data(d_ps_filtered)$group,
+  n.fold = 5,
+  n.iter = 10  # Adjust the number of iterations as needed
+)
+```
+
+```{r}
+d_cv_selbal$accuracy.nvar
+```
+
+```{r}
+d_cv_selbal$var.barplot
+```
+
+
+```{r}
+plot.new()
+grid.draw(d_cv_selbal$global.plot)
+```
+
+```{r}
+d_cv_selbal$ROC.plot
+```
+
+
+### VALIDATION COHORT
+```{r}
+v_ps_family <- phyloseq::tax_glom(v_ps, "Family")
+phyloseq::taxa_names(v_ps_family) <- phyloseq::tax_table(v_ps_family)[, "Family"]
+```
+
+```{r}
+# Remove columns with low counts
+threshold <- 131  # Adjust the threshold as needed. FOUND 131 TO BE THE MINIMUM THRESHOLD ALLOWED TO PERFORM THE CV!!
+v_ps_filtered <- phyloseq::prune_taxa(rowSums(phyloseq::otu_table(v_ps_family)) >= threshold, v_ps_family)
+
+# Run Selbal
+v_cv_selbal <- selbal::selbal.cv(
+  x = data.frame(t(phyloseq::otu_table(v_ps_filtered))),
+  y = phyloseq::sample_data(v_ps_filtered)$group,
+  n.fold = 5,
+  n.iter = 10  # Adjust the number of iterations as needed
+)
+```
+
+```{r}
+v_cv_selbal$accuracy.nvar
+```
+
+```{r}
+v_cv_selbal$var.barplot
+```
+
+```{r}
+plot.new()
+grid.draw(v_cv_selbal$global.plot)
+```
+
+```{r}
+v_cv_selbal$ROC.plot
+```
+
+
+## CODA4MICROBIOME
+
+### DISCOVERY COHORT
+```{r}
+set.seed(123) # to reproduce the results
+
+d_coda_glmnet <- coda_glmnet(x = data.frame(t(phyloseq::otu_table(d_ps_family))), y = phyloseq::sample_data(d_ps_family)$group, nfold=8)
+```
+
+```{r}
+d_coda_glmnet$taxa.num
+length(d_coda_glmnet$taxa.num)
+```
+
+```{r}
+d_coda_glmnet$`apparent AUC`
+d_coda_glmnet$`mean cv-AUC`
+d_coda_glmnet$`sd cv-AUC`
+```
+
+```{r}
+d_logratios <- explore_logratios(x = data.frame(t(phyloseq::otu_table(d_ps_family))), y = phyloseq::sample_data(d_ps_family)$group, measure = "glm")
+```
+
+```{r}
+d_logratios$`order of importance`
+d_logratios$`name of most important variables`
+```
+
+### VALIDATION COHORT
+```{r}
+set.seed(123) # to reproduce the results
+
+v_coda_glmnet <- coda_glmnet(x = data.frame(t(phyloseq::otu_table(v_ps_family))), y = phyloseq::sample_data(v_ps_family)$group, nfold=3)
+```
+
+```{r}
+v_coda_glmnet$taxa.num
+length(v_coda_glmnet$taxa.num)
+```
+
+```{r}
+v_coda_glmnet$`apparent AUC`
+v_coda_glmnet$`mean cv-AUC`
+v_coda_glmnet$`sd cv-AUC`
+```
+
+```{r}
+v_logratios <- explore_logratios(x = data.frame(t(phyloseq::otu_table(v_ps_family))), y = phyloseq::sample_data(v_ps_family)$group, measure = "glm")
+```
+
+```{r}
+v_logratios$`order of importance`
+v_logratios$`name of most important variables`
+```
+
+## RANDOM FORESTS (MACHINE LEARNING)
+
+### DISCOVERY COHORT
+```{r}
+# Convert the input features to a data frame or matrix
+d_input_data <- as.data.frame(t(phyloseq::otu_table(d_ps_family)))
+
+# Convert the target variable to a factor
+d_target_variable <- phyloseq::sample_data(d_ps_family)$group
+```
+
+
+```{r}
+#Generate training and test partitions
+set.seed(1234)  # Set a seed for reproducibility
+d_train_indices <- createDataPartition(d_target_variable, p = 0.7, list = FALSE)
+d_training_data <- d_input_data[d_train_indices, ]
+d_testing_data <- d_input_data[-d_train_indices, ]
+d_training_target <- d_target_variable[d_train_indices]
+d_testing_target <- d_target_variable[-d_train_indices]
+```
+
+```{r}
+d_model <- randomForest(x = d_training_data, y = d_training_target, ntree = 50)
+d_predictions <- predict(d_model, newdata = d_testing_data)
+confusionMatrix(d_predictions, d_testing_target)
+```
+
+### VALIDATION COHORT
+```{r}
+# Convert the input features to a data frame or matrix
+v_input_data <- as.data.frame(t(phyloseq::otu_table(v_ps_family)))
+
+# Convert the target variable to a factor
+v_target_variable <- phyloseq::sample_data(v_ps_family)$group
+```
+
+
+```{r}
+#Generate training and test partitions
+set.seed(1234)  # Set a seed for reproducibility
+v_train_indices <- createDataPartition(v_target_variable, p = 0.7, list = FALSE)
+v_training_data <- v_input_data[v_train_indices, ]
+v_testing_data <- v_input_data[-v_train_indices, ]
+v_training_target <- v_target_variable[v_train_indices]
+v_testing_target <- v_target_variable[-v_train_indices]
+```
+
+```{r}
+v_model <- randomForest(x = v_training_data, y = v_training_target, ntree = 50)
+v_predictions <- predict(v_model, newdata = v_testing_data)
+confusionMatrix(v_predictions, v_testing_target)
+```
+
+
+
+
+
+
+
