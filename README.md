@@ -5,5 +5,5 @@ The work is based on metagenomic sequencing data of 16S rRNA from fecal samples 
 
 Once the taxonomic classification data has been obtained, statistical analysis has been carried out using Rstudio to determine and extract a dysbiosis pattern that is common to the samples of patients composing the discovery cohort. Subsequently, these results have been attempted to be extrapolated to the validation cohort, which consisted of UC patient samples from another study.
 
-Subsequently, a task dedicated to the prediction of clinical outcomes has been carried out using the relative abundances of different taxa as differentiating features. Machine learning techniques (ML) (Serrano-Gómez et al., 2021) have been used for this purpose, but other approaches based on generalized linear models (GLMs) or multiple regressions like selbal and coda4microbiome have also been employed (Rivera-Pinto et al., 2018).
+Subsequently, a task dedicated to the prediction of clinical outcomes has been carried out using the relative abundances of different taxa as differentiating features. Machine learning techniques (ML) (Serrano-Gómez et al., 2021) have been used for this purpose, but other approaches based on generalized linear models (GLMs) or multiple regressions like selbal and coda4microbiome have also been employed (Rivera-Pinto et al., 2018; Calle et al., 2023).
 
