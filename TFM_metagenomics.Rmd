@@ -3,6 +3,9 @@ title: "TFM_metagenomics"
 author: "Miquel Castany"
 date: "`r Sys.Date()`"
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
   html_document:
     code_folding: hide
     toc: yes
@@ -10,9 +13,6 @@ output:
     theme: cerulean
     highlight: textmate
     number_sections: yes
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
 editor_options:
   chunk_output_type: inline
 ---
@@ -33,7 +33,7 @@ opts_chunk$set(echo=TRUE,
 opts_knit$set(width=75)
 ```
 
-
+# INSTALLING AND LOADING REQUIERED PACKAGES
 ```{r}
 .cran_packages <- c("tidyverse", "cowplot", "picante", "vegan", "HMP", "dendextend", "rms", "devtools", "caret")
 .bioc_packages <- c("phyloseq", "microbiome")
@@ -65,11 +65,15 @@ library(selbal)
 library(coda4microbiome)
 library(caret)
 library(randomForest)
+library(purrr)
+library(tibble)
+library(reshape)
+library(reshape2)
 ```
 
-# IMPORT DATA
+# IMPORTING DATA
 ```{r}
-#FIRST SET THE WORKING DIRECTORY WHERE YOUR DATA IS!!
+setwd("C:/Users/casta/OneDrive/Escriptori/TFM/data")
 
 #DISCOVERY COHORT
 d_taxonomy <- read.table("discovery.final.taxonomy", header = TRUE, row.names = 1, sep = "\t")
@@ -88,7 +92,7 @@ v_count_table <- read.table("validation.final.count_table", header = TRUE, row.n
 v_metadata <- read.table("validation_SraRunTable.txt", header = TRUE, row.names = 1, sep = ",")
 ```
 
-# PHYLOSEQ OBJECT
+# CREATE PHYLOSEQ OBJECT
 ```{r}
 #Create discovery phyloseq object
 d_ps <- phyloseq(
@@ -147,10 +151,46 @@ v_ps %>%
   dplyr::count(group)
 ```
 
+# ABSOLUTE ABUNDANCE VISUALIZATION BY PHYLUM
 
-# RELATIVE ABUNDANCE VISUALIZATION
+## DISCOVERY COHORT
+```{r}
+d_ps_phylum <- phyloseq::tax_glom(d_ps, "Phylum")
+phyloseq::taxa_names(d_ps_phylum) <- phyloseq::tax_table(d_ps_phylum)[, "Phylum"]
+phyloseq::otu_table(d_ps_phylum)[,1:5]
+```
 
-## BY GROUP
+```{r}
+#Melt and plot for DICOVERY COHORT
+phyloseq::psmelt(d_ps_phylum) %>%
+ggplot(data = ., aes(x = group, y = Abundance)) +
+  geom_boxplot(outlier.shape  = NA) +
+  geom_jitter(aes(color = OTU), height = 0, width = .2) +
+  labs(x = "", y = "Abundance\n") +
+  facet_wrap(~ OTU, scales = "free")
+```
+
+## VALIDATION COHORT
+```{r}
+v_ps_phylum <- phyloseq::tax_glom(v_ps, "Phylum")
+phyloseq::taxa_names(v_ps_phylum) <- phyloseq::tax_table(v_ps_phylum)[, "Phylum"]
+phyloseq::otu_table(v_ps_phylum)[1:5, 1:5]
+```
+
+```{r}
+#Melt and plot for VALIDATION COHORT
+phyloseq::psmelt(v_ps_phylum) %>%
+ggplot(data = ., aes(x = group, y = Abundance)) +
+  geom_boxplot(outlier.shape  = NA) +
+  geom_jitter(aes(color = OTU), height = 0, width = .2) +
+  labs(x = "", y = "Abundance\n") +
+  facet_wrap(~ OTU, scales = "free")
+```
+
+# RELATIVE ABUNDANCE VISUALIZATION AND TESTING
+
+## DISCOVERY COHORT
+### BY GROUP
 ```{r}
 table(phyloseq::tax_table(d_ps)[, "Phylum"])
 d_ps_rel_abund = phyloseq::transform_sample_counts(d_ps, function(x){x / sum(x)})
@@ -168,7 +208,41 @@ phyloseq::plot_bar(d_ps_rel_abund, fill = "Phylum") +
         axis.ticks.x=element_blank())
 ```
 
+### BY PHYLUM
+```{r}
+d_ps_phylum_rel <- phyloseq::tax_glom(d_ps_rel_abund, "Phylum")
+phyloseq::taxa_names(d_ps_phylum_rel) <- phyloseq::tax_table(d_ps_phylum_rel)[, "Phylum"]
+phyloseq::otu_table(d_ps_phylum_rel)[,1:5]
+```
 
+
+```{r}
+# Convert phyloseq object to long format
+d_melted_data <- phyloseq::psmelt(d_ps_phylum_rel)
+
+# Perform Wilcoxon test for each phylum and store p-values
+d_p_values <- d_melted_data %>%
+  group_by(OTU) %>%
+  summarize(d_p_value = list(wilcox.test(Abundance ~ group)$p.value)) %>%
+  unnest(d_p_value)
+
+# Add p-values to the plot
+d_p <- ggplot(data = d_melted_data, aes(x = group, y = Abundance)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(color = OTU), height = 0, width = 0.2) +
+  labs(x = "", y = "Abundance\n") +
+  facet_wrap(~ OTU, scales = "free") +
+  geom_text(data = d_p_values, aes(label = paste("p-value:", format.pval(d_p_value))),
+            x = 1, y = Inf, hjust = 0, vjust = 1, size = 3)
+
+# Print the plot
+print(d_p)
+print(d_p_values)
+```
+
+
+## VALIDATION COHORT
+### BY GROUP
 ```{r}
 table(phyloseq::tax_table(v_ps)[, "Phylum"])
 v_ps_rel_abund = phyloseq::transform_sample_counts(v_ps, function(x){x / sum(x)})
@@ -186,43 +260,43 @@ phyloseq::plot_bar(v_ps_rel_abund, fill = "Phylum") +
         axis.ticks.x=element_blank())
 ```
 
-# ABSOLUTE ABUNDANCE VISUALIZATION
-
-## BY PHYLLUM
+### BY PHYLUM
 ```{r}
-d_ps_phylum <- phyloseq::tax_glom(d_ps, "Phylum")
-phyloseq::taxa_names(d_ps_phylum) <- phyloseq::tax_table(d_ps_phylum)[, "Phylum"]
-phyloseq::otu_table(d_ps_phylum)[,1:5]
+v_ps_phylum_rel <- phyloseq::tax_glom(v_ps_rel_abund, "Phylum")
+phyloseq::taxa_names(v_ps_phylum_rel) <- phyloseq::tax_table(v_ps_phylum_rel)[, "Phylum"]
+phyloseq::otu_table(v_ps_phylum_rel)[,1:5]
 ```
 
+
 ```{r}
-#Melt and plot for DICOVERY COHORT
-phyloseq::psmelt(d_ps_phylum) %>%
-ggplot(data = ., aes(x = group, y = Abundance)) +
-  geom_boxplot(outlier.shape  = NA) +
-  geom_jitter(aes(color = OTU), height = 0, width = .2) +
+# Convert phyloseq object to long format for VALIDATION COHORT
+v_melted_data <- phyloseq::psmelt(v_ps_phylum_rel)
+
+# Perform Wilcoxon test for each phylum and store p-values
+v_p_values <- v_melted_data %>%
+  group_by(OTU) %>%
+  summarize(v_p_value = list(wilcox.test(Abundance ~ group)$p.value)) %>%
+  unnest(v_p_value)
+
+# Add p-values to the plot
+v_p <- ggplot(data = v_melted_data, aes(x = group, y = Abundance)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(color = OTU), height = 0, width = 0.2) +
   labs(x = "", y = "Abundance\n") +
-  facet_wrap(~ OTU, scales = "free")
+  facet_wrap(~ OTU, scales = "free") +
+  geom_text(data = v_p_values, aes(label = paste("p-value:", format.pval(v_p_value))),
+            x = 1, y = Inf, hjust = 0, vjust = 1, size = 3)
+
+# Print the plot
+print(v_p)
+print(v_p_values)
 ```
 
 
-```{r}
-v_ps_phylum <- phyloseq::tax_glom(v_ps, "Phylum")
-phyloseq::taxa_names(v_ps_phylum) <- phyloseq::tax_table(v_ps_phylum)[, "Phylum"]
-phyloseq::otu_table(v_ps_phylum)[1:5, 1:5]
-```
 
-```{r}
-#Melt and plot for VALIDATION COHORT
-phyloseq::psmelt(v_ps_phylum) %>%
-ggplot(data = ., aes(x = group, y = Abundance)) +
-  geom_boxplot(outlier.shape  = NA) +
-  geom_jitter(aes(color = OTU), height = 0, width = .2) +
-  labs(x = "", y = "Abundance\n") +
-  facet_wrap(~ OTU, scales = "free")
-```
 
-## RARE PHYLA TEST
+# RARE PHYLA TEST
+## DISCOVERY COHORT
 ```{r}
 #Subset groups
 d_controls <- phyloseq::subset_samples(d_ps_phylum, group == "HC")
@@ -254,6 +328,7 @@ d_group_data <- list(d_control_otu, d_UC_otu)
 1 - pchisq(-22.39171, 4)
 ```
 
+## VALIDATION COHORT
 ```{r}
 #Subset groups
 v_controls <- phyloseq::subset_samples(v_ps_phylum, group == "HC")
@@ -412,6 +487,11 @@ d_pv <- ks.test(d_spl$HC, d_spl$UC)$p.value
 (d_padj <- p.adjust(d_pv))
 ```
 
+```{r}
+#Wilcoxon test for discovery alpha-diversity
+(d_pv_wilcox <- wilcox.test(d_spl$HC, d_spl$UC)$p.value)
+```
+
 
 ## VALIDATION COHORT
 ```{r}
@@ -477,6 +557,12 @@ v_pv <- ks.test(v_spl$HC, v_spl$UC)$p.value
 (v_padj <- p.adjust(v_pv))
 ```
 
+```{r}
+# Wilcoxon test for validation alpha-diversity
+(v_pv_wilcox <- wilcox.test(v_spl$HC, v_spl$UC)$p.value)
+```
+
+
 # BETA DIVERSITY
 
 ## DISCOVERY COHORT
@@ -501,6 +587,13 @@ d_p<- ggplot(d_df, aes(x = L1, y = value)) + geom_boxplot()+ xlab('')
 plot(d_p)
 ```
 
+```{r}
+# Wilcoxon test for discovery beta-diverstiy
+d_beta_wilcox <- wilcox.test(d_b.HC, d_b.UC)
+d_beta_wilcox$p.value
+```
+
+
 ## VALIDATION COHORT
 ```{r}
 v_b.HC <- divergence(subset_samples(v_ps, group == "HC"),
@@ -521,6 +614,12 @@ v_df$L1<- factor(v_df$L1, levels = c('HC','UC'))
 v_p<- ggplot(v_df, aes(x = L1, y = value)) + geom_boxplot()+ xlab('')
 
 plot(v_p)
+```
+
+```{r}
+# Wilocoxon test for validation beta-diversity
+v_beta_wilcox <- wilcox.test(v_b.HC, v_b.UC)
+v_beta_wilcox$p.value
 ```
 
 
@@ -599,10 +698,12 @@ phyloseq::plot_ordination(v_ps, v_ord_clr, type="samples", color="group") +
 # DIFFERENTIAL ABUNDANCE ANALYSIS
 
 ## DISCOVERY COHORT
+
+### BY PHYLLUM
 ```{r}
 #Generate data.frame with OTUs and metadata
-d_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(d_ps_clr))))
-d_ps_wilcox$group <- phyloseq::sample_data(d_ps_clr)$group
+d_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(d_ps_phylum_rel))))
+d_ps_wilcox$group <- phyloseq::sample_data(d_ps_phylum_rel)$group
 #Define functions to pass to map
 wilcox_model <- function(df){
   wilcox.test(abund ~ group, data = df)
@@ -622,18 +723,6 @@ head(d_wilcox_results)
 ```
 
 ```{r}
-head(d_wilcox_results$data[[1]])
-```
-
-```{r}
-d_wilcox_results$wilcox_test[[1]]
-```
-
-```{r}
-d_wilcox_results$p_value[[1]]
-```
-
-```{r}
 #Unnesting
 d_wilcox_results <- d_wilcox_results %>%
   dplyr::select(OTU, p_value) %>%
@@ -641,12 +730,8 @@ d_wilcox_results <- d_wilcox_results %>%
 ```
 
 ```{r}
-head(d_wilcox_results)
-```
-
-```{r}
 #Adding taxonomic labels
-d_taxa_info <- data.frame(tax_table(d_ps_clr))
+d_taxa_info <- data.frame(tax_table(d_ps_phylum_rel))
 d_taxa_info <- d_taxa_info %>% rownames_to_column(var = "OTU")
 #Computing FDR corrected p-values
 d_wilcox_results <- d_wilcox_results %>%
@@ -659,15 +744,201 @@ d_wilcox_results <- d_wilcox_results %>%
 
 ```{r}
 #Printing results
+(d_wilcox_results)
+
+```
+
+### BY CLASS
+```{r}
+#aglomerate by tax class
+d_ps_class_rel <- phyloseq::tax_glom(d_ps_rel_abund, "Class")
+```
+
+```{r}
+#Generate data.frame with OTUs and metadata
+d_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(d_ps_class_rel))))
+d_ps_wilcox$group <- phyloseq::sample_data(d_ps_class_rel)$group
+#Define functions to pass to map
+wilcox_model <- function(df){
+  wilcox.test(abund ~ group, data = df)
+}
+wilcox_pval <- function(df){
+  wilcox.test(abund ~ group, data = df)$p.value
+}
+#Create nested data frames by OTU and loop over each using map 
+d_wilcox_results <- d_ps_wilcox %>%
+  gather(key = OTU, value = abund, -group) %>%
+  group_by(OTU) %>%
+  nest() %>%
+  mutate(wilcox_test = map(data, wilcox_model),
+         p_value = map(data, wilcox_pval))                       
+#Show results
 head(d_wilcox_results)
+```
+
+```{r}
+#Unnesting
+d_wilcox_results <- d_wilcox_results %>%
+  dplyr::select(OTU, p_value) %>%
+  unnest()
+```
+
+```{r}
+#Adding taxonomic labels
+d_taxa_info <- data.frame(tax_table(d_ps_class_rel))
+d_taxa_info <- d_taxa_info %>% rownames_to_column(var = "OTU")
+#Computing FDR corrected p-values
+d_wilcox_results <- d_wilcox_results %>%
+  full_join(d_taxa_info) %>%
+  arrange(p_value) %>%
+  mutate(BH_FDR = p.adjust(p_value, "BH")) %>%
+  filter(BH_FDR < 0.05) %>%
+  dplyr::select(OTU, p_value, BH_FDR, everything())
+```
+
+```{r}
+(d_wilcox_results) 
+```
+
+
+```{r}
+# Define the classes of interest
+classes_of_interest <- c("Bacteroidia", "Bacteria_unclassified", "Deltaproteobacteria", "Bacilli")
+
+# Initialize an empty list to store the plots
+plot_list <- list()
+
+# Loop through each class of interest
+for (class_of_interest in classes_of_interest) {
+  # Subset the phyloseq object for the current class
+  d_ps_subset <- subset_taxa(d_ps_class_rel, Class == class_of_interest)
+  
+  # Convert the subsetted phyloseq object to a data frame
+  abundance_df <- as.data.frame(t(otu_table(d_ps_subset)))
+  
+  # Add the group information to the data frame
+  group_info <- sample_data(d_ps_class_rel)$group
+  abundance_df$group <- group_info
+  
+  # Create the boxplot
+  plot <- ggplot(melt(abundance_df, id.vars = "group"), aes(x = group, y = value)) +
+    geom_boxplot() +
+    labs(x = "Group", y = "Abundance") +
+    ggtitle(paste("Boxplot for", class_of_interest, "Class")) +
+    theme_minimal()
+  
+  # Store the plot in the list
+  plot_list[[class_of_interest]] <- plot
+}
+
+# Display the plots
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
+```
+
+
+
+
+
+
+
+### BY ORDER
+```{r}
+#aglomerate by tax Order
+d_ps_order_rel <- phyloseq::tax_glom(d_ps_rel_abund, "Order")
+```
+
+```{r}
+#Generate data.frame with OTUs and metadata
+d_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(d_ps_order_rel))))
+d_ps_wilcox$group <- phyloseq::sample_data(d_ps_order_rel)$group
+#Define functions to pass to map
+wilcox_model <- function(df){
+  wilcox.test(abund ~ group, data = df)
+}
+wilcox_pval <- function(df){
+  wilcox.test(abund ~ group, data = df)$p.value
+}
+#Create nested data frames by OTU and loop over each using map 
+d_wilcox_results <- d_ps_wilcox %>%
+  gather(key = OTU, value = abund, -group) %>%
+  group_by(OTU) %>%
+  nest() %>%
+  mutate(wilcox_test = map(data, wilcox_model),
+         p_value = map(data, wilcox_pval))                       
+#Show results
+head(d_wilcox_results)
+```
+
+```{r}
+#Unnesting
+d_wilcox_results <- d_wilcox_results %>%
+  dplyr::select(OTU, p_value) %>%
+  unnest()
+```
+
+```{r}
+#Adding taxonomic labels
+d_taxa_info <- data.frame(tax_table(d_ps_order_rel))
+d_taxa_info <- d_taxa_info %>% rownames_to_column(var = "OTU")
+#Computing FDR corrected p-values
+d_wilcox_results <- d_wilcox_results %>%
+  full_join(d_taxa_info) %>%
+  arrange(p_value) %>%
+  mutate(BH_FDR = p.adjust(p_value, "BH")) %>%
+  filter(BH_FDR < 0.05) %>%
+  dplyr::select(OTU, p_value, BH_FDR, everything())
+```
+
+```{r}
+(d_wilcox_results) 
+```
+
+```{r}
+# Define the orders of interest
+orders_of_interest <- c("Clostridia_unclassified", "Bacteroidales", "Bacteria_unclassified", "Rhizobiales", "Desulfovibrionales", "Rhodobacterales", "Coriobacteriales", "Lactobacillales", "Bifidobacteriales")
+
+# Initialize an empty list to store the plots
+plot_list <- list()
+
+# Loop through each order of interest
+for (order_of_interest in orders_of_interest) {
+  # Subset the phyloseq object for the current class
+  d_ps_subset <- subset_taxa(d_ps_order_rel, Order == order_of_interest)
+  
+  # Convert the subsetted phyloseq object to a data frame
+  abundance_df <- as.data.frame(t(otu_table(d_ps_subset)))
+  
+  # Add the group information to the data frame
+  group_info <- sample_data(d_ps_order_rel)$group
+  abundance_df$group <- group_info
+  
+  # Create the boxplot
+  plot <- ggplot(melt(abundance_df, id.vars = "group"), aes(x = group, y = value)) +
+    geom_boxplot() +
+    labs(x = "Group", y = "Abundance") +
+    ggtitle(paste("Boxplot for", order_of_interest, "Class")) +
+    theme_minimal()
+  
+  # Store the plot in the list
+  plot_list[[order_of_interest]] <- plot
+}
+
+# Display the plots
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
 ```
 
 
 ## VALIDATION COHORT
+
+### BY PHYLLUM
 ```{r}
 #Generate data.frame with OTUs and metadata
-v_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(v_ps_clr))))
-v_ps_wilcox$group <- phyloseq::sample_data(v_ps_clr)$group
+v_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(v_ps_phylum_rel))))
+v_ps_wilcox$group <- phyloseq::sample_data(v_ps_phylum_rel)$group
 #Define functions to pass to map
 wilcox_model <- function(df){
   wilcox.test(abund ~ group, data = df)
@@ -687,18 +958,6 @@ head(v_wilcox_results)
 ```
 
 ```{r}
-head(v_wilcox_results$data[[1]])
-```
-
-```{r}
-v_wilcox_results$wilcox_test[[1]]
-```
-
-```{r}
-v_wilcox_results$p_value[[1]]
-```
-
-```{r}
 #Unnesting
 v_wilcox_results <- v_wilcox_results %>%
   dplyr::select(OTU, p_value) %>%
@@ -706,12 +965,8 @@ v_wilcox_results <- v_wilcox_results %>%
 ```
 
 ```{r}
-head(v_wilcox_results)
-```
-
-```{r}
 #Adding taxonomic labels
-v_taxa_info <- data.frame(tax_table(v_ps_clr))
+v_taxa_info <- data.frame(tax_table(v_ps_phylum_rel))
 v_taxa_info <- v_taxa_info %>% rownames_to_column(var = "OTU")
 #Computing FDR corrected p-values
 v_wilcox_results <- v_wilcox_results %>%
@@ -723,7 +978,184 @@ v_wilcox_results <- v_wilcox_results %>%
 ```
 
 ```{r}
-head(v_wilcox_results) 
+(v_wilcox_results) 
+```
+
+### BY CLASS
+```{r}
+#Aglomerate by tax Class
+v_ps_class_rel <- phyloseq::tax_glom(v_ps_rel_abund, "Class")
+```
+
+```{r}
+#Generate data.frame with OTUs and metadata
+v_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(v_ps_class_rel))))
+v_ps_wilcox$group <- phyloseq::sample_data(v_ps_class_rel)$group
+#Define functions to pass to map
+wilcox_model <- function(df){
+  wilcox.test(abund ~ group, data = df)
+}
+wilcox_pval <- function(df){
+  wilcox.test(abund ~ group, data = df)$p.value
+}
+#Create nested data frames by OTU and loop over each using map 
+v_wilcox_results <- v_ps_wilcox %>%
+  gather(key = OTU, value = abund, -group) %>%
+  group_by(OTU) %>%
+  nest() %>%
+  mutate(wilcox_test = map(data, wilcox_model),
+         p_value = map(data, wilcox_pval))                       
+#Show results
+head(v_wilcox_results)
+```
+
+```{r}
+#Unnesting
+v_wilcox_results <- v_wilcox_results %>%
+  dplyr::select(OTU, p_value) %>%
+  unnest()
+```
+
+```{r}
+#Adding taxonomic labels
+v_taxa_info <- data.frame(tax_table(v_ps_class_rel))
+v_taxa_info <- v_taxa_info %>% rownames_to_column(var = "OTU")
+#Computing FDR corrected p-values
+v_wilcox_results <- v_wilcox_results %>%
+  full_join(v_taxa_info) %>%
+  arrange(p_value) %>%
+  mutate(BH_FDR = p.adjust(p_value, "BH")) %>%
+  filter(BH_FDR < 0.05) %>%
+  dplyr::select(OTU, p_value, BH_FDR, everything())
+```
+
+```{r}
+(v_wilcox_results) 
+```
+
+```{r}
+# Define the classes of interest
+classes_of_interest <- c("Bacilli", "Proteobacteria_unclassified", "Gammaproteobacteria", "Bacteroidetes_unclassified", "Verrucomicrobiae", "Firmicutes_unclassified", "Bacteria_unclassified", "Fusobacteria", "Alphaproteobacteria", "Deltaproteobacteria")
+
+# Initialize an empty list to store the plots
+plot_list <- list()
+
+# Loop through each class of interest
+for (class_of_interest in classes_of_interest) {
+  # Subset the phyloseq object for the current class
+  d_ps_subset <- subset_taxa(v_ps_class_rel, Class == class_of_interest)
+  
+  # Convert the subsetted phyloseq object to a data frame
+  abundance_df <- as.data.frame(t(otu_table(d_ps_subset)))
+  
+  # Add the group information to the data frame
+  group_info <- sample_data(v_ps_class_rel)$group
+  abundance_df$group <- group_info
+  
+  # Create the boxplot
+  plot <- ggplot(melt(abundance_df, id.vars = "group"), aes(x = group, y = value)) +
+    geom_boxplot() +
+    labs(x = "Group", y = "Abundance") +
+    ggtitle(paste("Boxplot for", class_of_interest, "Class")) +
+    theme_minimal()
+  
+  # Store the plot in the list
+  plot_list[[class_of_interest]] <- plot
+}
+
+# Display the plots
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
+```
+
+
+### BY ORDER
+```{r}
+#Aglomerate by tax Order
+v_ps_order_rel <- phyloseq::tax_glom(v_ps_rel_abund, "Order")
+```
+
+```{r}
+#Generate data.frame with OTUs and metadata
+v_ps_wilcox <- data.frame(t(data.frame(phyloseq::otu_table(v_ps_order_rel))))
+v_ps_wilcox$group <- phyloseq::sample_data(v_ps_order_rel)$group
+#Define functions to pass to map
+wilcox_model <- function(df){
+  wilcox.test(abund ~ group, data = df)
+}
+wilcox_pval <- function(df){
+  wilcox.test(abund ~ group, data = df)$p.value
+}
+#Create nested data frames by OTU and loop over each using map 
+v_wilcox_results <- v_ps_wilcox %>%
+  gather(key = OTU, value = abund, -group) %>%
+  group_by(OTU) %>%
+  nest() %>%
+  mutate(wilcox_test = map(data, wilcox_model),
+         p_value = map(data, wilcox_pval))                       
+#Show results
+head(v_wilcox_results)
+```
+
+```{r}
+#Unnesting
+v_wilcox_results <- v_wilcox_results %>%
+  dplyr::select(OTU, p_value) %>%
+  unnest()
+```
+
+```{r}
+#Adding taxonomic labels
+v_taxa_info <- data.frame(tax_table(v_ps_order_rel))
+v_taxa_info <- v_taxa_info %>% rownames_to_column(var = "OTU")
+#Computing FDR corrected p-values
+v_wilcox_results <- v_wilcox_results %>%
+  full_join(v_taxa_info) %>%
+  arrange(p_value) %>%
+  mutate(BH_FDR = p.adjust(p_value, "BH")) %>%
+  filter(BH_FDR < 0.05) %>%
+  dplyr::select(OTU, p_value, BH_FDR, everything())
+```
+
+```{r}
+(v_wilcox_results) 
+```
+
+```{r}
+# Define the orders of interest
+orders_of_interest <- c("Bacillales", "Pseudomonadales", "Proteobacteria_unclassified", "Alphaproteobacteria_unclassified", "Bacteroidetes_unclassified", "Enterobacteriales", "Verrucomicrobiales", "Clostridia_unclassified", "Firmicutes_unclassified", "Deltaproteobacteria_unclassified", "Bacteria_unclassified", "Bdellovibrionales", "Fusobacteriales")
+
+# Initialize an empty list to store the plots
+plot_list <- list()
+
+# Loop through each order of interest
+for (order_of_interest in orders_of_interest) {
+  # Subset the phyloseq object for the current class
+  d_ps_subset <- subset_taxa(d_ps_order_rel, Order == order_of_interest)
+  
+  # Convert the subsetted phyloseq object to a data frame
+  abundance_df <- as.data.frame(t(otu_table(d_ps_subset)))
+  
+  # Add the group information to the data frame
+  group_info <- sample_data(d_ps_order_rel)$group
+  abundance_df$group <- group_info
+  
+  # Create the boxplot
+  plot <- ggplot(melt(abundance_df, id.vars = "group"), aes(x = group, y = value)) +
+    geom_boxplot() +
+    labs(x = "Group", y = "Abundance") +
+    ggtitle(paste("Boxplot for", order_of_interest, "Class")) +
+    theme_minimal()
+  
+  # Store the plot in the list
+  plot_list[[order_of_interest]] <- plot
+}
+
+# Display the plots
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
 ```
 
 
