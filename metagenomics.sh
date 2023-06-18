@@ -32,7 +32,7 @@ docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta)"
 
 #### screen.seqs()
-docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta, maxambig=0, maxlength=297, maxhomop=8)" 
+docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.fasta, maxambig=0, maxlength=321, maxhomop=8)" 
 
 #### unique.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#unique.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.fasta)"
@@ -56,7 +56,7 @@ docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#summary.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.align)"
 
 #### screen.seqs(align/count)
-docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.align, count= discovery.trim.contigs.good.count_table, start=2, end=13423)"
+docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#screen.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.align, count= discovery.trim.contigs.good.count_table, start=13862, end=23444)"
 
 #### filter.seqs()
 docker run -it -v /home/miquel/mothur:/home/miquel/mothur biocontainers/mothur:v1.41.21-1-deb_cv1 mothur "#filter.seqs(inputdir=/home/miquel/mothur, fasta=discovery.trim.contigs.good.unique.good.align, vertical=T, trump=.)"
